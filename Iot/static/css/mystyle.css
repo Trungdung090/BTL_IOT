@@ -32,9 +32,6 @@ button {
 button:hover {
     background-color: #2980b9;
 }
-#uploadForm {
-    display: none;
-}
 table {
     width: 100%;
     border-collapse: collapse;
@@ -80,33 +77,6 @@ th {
     font-weight: bold;
     cursor: pointer;
 }
-.button-group {
-    display: flex;
-    gap: 20px; /* Khoảng cách giữa các nút */
-    align-items: center;
-}
-.upload-btn {
-    background-color: #007bff;
-    color: white;
-    padding: 8px 15px;
-    border: none;
-    cursor: pointer;
-}
-.upload-btn:hover {
-    background-color: #0056b3;
-}
-.reset-btn {
-    margin
-    background-color: red;
-    color: white;
-    padding: 8px 15px;
-    border: none;
-    cursor: pointer;
-}
-.reset-btn:hover {
-    background-color: darkred;
-}
-/* Style mới */
 .image-container {
     margin-top: 20px;
     display: none;
