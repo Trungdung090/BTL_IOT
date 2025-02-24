@@ -1,8 +1,0 @@
-sqlite3 access_log.db <<EOF
-CREATE TABLE IF NOT EXISTS logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    time TEXT,
-    num_people INTEGER
-);
-EOF
