@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/mystyle.css') }}">
+    <script defer src="{{ url_for('static', filename='js/myjs1.js') }}"></script>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Giám sát người bằng Camera</h1>
+    </header>
+
+    <section class="image-preview">
+        <div id="image-container" class="hidden">
+            <h3>Ảnh đã nhận diện</h3>
+            <img id="latest-image" src="" alt="Ảnh đã nhận diện" width="500">
+        </div>
+    </section>
+
+    <section class="upload-section">
+        <h2>   </h2>
+        <input type="file" id="uploadInput" accept="image/*">
+        <button onclick="uploadImage()">Upload</button>
+    </section>
+
+    <section class="reset-section">
+        <button onclick="resetDatabase()">Reset Database</button>
+    </section>
+
+    <section class="log-section">
+        <h2>Lịch sử</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Thời gian</th>
+                    <th>Số người</th>
+                </tr>
+            </thead>
+            <tbody id="log-table-body"></tbody>
+        </table>
+    </section>
+</div>
+</body>
+</html>
