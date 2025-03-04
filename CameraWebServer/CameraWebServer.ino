@@ -8,8 +8,8 @@
 #include "camera_pins.h"
 
 // Wi-Fi credentials1
-const char* ssid = "IoT";
-const char* password = "234567Cn";
+const char* ssid = ".....";
+const char* password = "888899999";
 
 // MQTT broker details
 const char* mqtt_server = "ebf16958b9164dddb8a78512f3aca426.s1.eu.hivemq.cloud";
