@@ -6,7 +6,7 @@ import threading
 import queue
 import paho.mqtt.client as mqtt
 from datetime import datetime
-from flask import Flask, render_template, send_from_directory, jsonify, request
+from flask import Flask, render_template, send_from_directory, jsonify, request, redirect, Response
 from ultralytics import YOLO
 import numpy as np
 
@@ -25,7 +25,7 @@ UPLOAD_FOLDER = "./uploads"   # Thư mục lưu ảnh
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Biến lưu tên ảnh hiện tại để hiển thị trong web
-processed_image = ""    # Lưu ảnh đã nhận diện
+current_image = ""
 
 # Load model YOLO
 model_path = r"D:\Pycharm\Iot\train5\train5\weights\best.pt"
@@ -39,9 +39,8 @@ def db_worker():
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        time TEXT NOT NULL UNIQUE,      
-        people_count INTEGER DEFAULT 0,
-        image_name TEXT
+        time TEXT NOT NULL, 
+        people_count INTEGER DEFAULT 0
     )''')
     conn.commit()
 
@@ -53,49 +52,28 @@ def db_worker():
         conn.commit()
     conn.close()        # Đóng kết nối sau khi sử dụng
 
-def save_log(people_count, image_name):
-    if people_count > 0:   # Chỉ lưu nếu phát hiện ít nhất 1 người
-        time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        conn = sqlite3.connect("access_control.db")
-        cursor = conn.cursor()
-
-        # Lấy ID lớn nhất hiện tại
-        cursor.execute("SELECT MAX(id) FROM logs")
-        max_id = cursor.fetchone()[0]  # Lấy giá trị lớn nhất
-        new_id = 1 if max_id is None else max_id + 1  # Nếu không có dữ liệu, bắt đầu từ 1
-
-        # Chèn dữ liệu với ID mới
-        cursor.execute("INSERT INTO logs (id, time, people_count, image_name) VALUES (?, ?, ?, ?)",
-                       (new_id, time_now, people_count, image_name))
-        conn.commit()
-        conn.close()
+def save_log(people_count):
+    time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    db_queue.put(("INSERT INTO logs (time, people_count) VALUES (?, ?)", (time_now, people_count)))
 
 def detect_people(image_path):
-    global processed_image  # Cập nhật biến này để gửi ảnh lên web
     image = cv2.imread(image_path)
     if image is None:
         print("Không thể mở ảnh")
         return 0
+
     results = model(image)
     boxes = results[0].boxes.xyxy.cpu().numpy()      # Chuyển tensor sang numpy
     people_count = len(boxes)
 
-    if people_count > 0:  # Chỉ xử lý khi có người
-        for box in boxes:
-            x1, y1, x2, y2 = map(int, box[:4])
-            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(image, 'Nguoi', (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    for box in boxes:
+        x1, y1, x2, y2 = map(int, box[:4])
+        cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.putText(image, 'Nguoi', (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-        processed_image_name = "processed_" + os.path.basename(image_path)
-        processed_image_path = os.path.join(UPLOAD_FOLDER, processed_image_name)
-        cv2.imwrite(processed_image_path, image)  # Lưu ảnh nhận diện
-        processed_image = processed_image_name  # Cập nhật ảnh mới nhất
-        save_log(people_count, processed_image_name)
-        return people_count
-    else:
-        print("Không phát hiện người, không lưu ảnh.")
-        os.remove(image_path)  # Xóa ảnh nếu không phát hiện người
-        return 0
+    cv2.imwrite(image_path, image)
+    save_log(people_count)
+    return people_count
 
 def on_connect(client, userdata, flags, rc, properties=None):
     print(f"Connected with result code {rc}")
@@ -103,13 +81,13 @@ def on_connect(client, userdata, flags, rc, properties=None):
 
 # Hàm nhận dữ liệu từ MQTT
 def on_message(client, userdata, msg):
-    global image_parts, total_parts, received_parts, processed_image
+    global image_parts, total_parts, received_parts, current_image
     message = msg.payload.decode()
 
     if message == "end":
-        #print("End of image transmission received.")
-        #print("Final concatenated image data (Base64):")
-        #print(image_parts)
+        print("End of image transmission received.")
+        print("Final concatenated image data (Base64):")
+        print(image_parts)
 
         # Lưu ảnh với timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -121,7 +99,7 @@ def on_message(client, userdata, msg):
             with open(file_path, "wb") as img_file:
                 img_file.write(image_bytes)
             print(f"Ảnh đã lưu: {file_name}")
-            processed_image = file_name
+            current_image = file_name
             people_count = detect_people(file_path)
             print(f"Số người phát hiện: {people_count}")
         except Exception as e:
@@ -149,7 +127,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return render_template('index1.html')
+    return render_template('index.html')
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -177,39 +155,16 @@ def upload_file():
         print(f"Lỗi khi lưu ảnh: {e}")
         return jsonify({'success': False, 'error': 'Lỗi lưu ảnh!'})
 
-@app.route('/processed-image')
-def get_processed_image():
-    return jsonify({'image_name': processed_image})
-
-@app.route('/density-hourly')
-def get_hourly_density():
-    try:
-        conn = sqlite3.connect("access_control.db")
-        cursor = conn.cursor()
-
-        # Truy vấn dữ liệu, nhóm theo giờ
-        cursor.execute("""
-            SELECT strftime('%H', time) as hour, COALESCE(SUM(people_count), 0) as people_count 
-            FROM logs 
-            WHERE date(time) = date('now')  -- Lọc theo ngày hiện tại
-            GROUP BY hour 
-            ORDER BY hour
-        """)
-        data = {row[0]: row[1] for row in cursor.fetchall()}  # Chuyển thành dict
-        conn.close()
-        # Tạo danh sách đủ 24 giờ
-        full_data = [{"hour": f"{h:02d}", "people_count": data.get(f"{h:02d}", 0)} for h in range(24)]
-
-        return jsonify(full_data)   # ✅ Trả về danh sách JSON đủ 24 giờ
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+@app.route('/current-image')
+def current_image_route():
+    return jsonify({'image_name': current_image})
 
 @app.route('/access_control')
 def get_logs():
     conn = sqlite3.connect("access_control.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM logs ORDER BY id DESC LIMIT 20")  # Lấy 20 bản ghi mới nhất
-    logs = [{"id": row[0], "time": row[1], "people_count": row[2], "image_name": row[3]} for row in cursor.fetchall()]
+    cursor.execute("SELECT * FROM logs ORDER BY id DESC LIMIT 20")  # Lấy 10 bản ghi mới nhất
+    logs = [{"id": row[0], "time": row[1], "people_count": row[2]} for row in cursor.fetchall()]
     conn.close()
     return jsonify(logs)
 

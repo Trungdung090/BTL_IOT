@@ -3,5 +3,5 @@ train: D:\Pycharm\Iot\dataset\images\train
 val: D:\Pycharm\Iot\dataset\images\val
 test: D:\Pycharm\Iot\dataset\test
 
-nc: 1
-names: ['Nguoi']
+nc: 2
+names: ['face', 'person']
